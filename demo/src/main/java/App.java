@@ -1,4 +1,5 @@
 import io.pyroscope.http.Format;
+import io.pyroscope.javaagent.EventType;
 import io.pyroscope.javaagent.PyroscopeAgent;
 import io.pyroscope.javaagent.Snapshot;
 import io.pyroscope.javaagent.api.Exporter;
@@ -18,10 +19,11 @@ public class App {
 
     public static void main(String[] args) {
         PyroscopeAgent.start(
+
             new PyroscopeAgent.Options.Builder(
                 new Config.Builder()
-                    .setApplicationName("demo.app{qweqwe=asdasd}")
-                    .setServerAddress("http://localhost:4040")
+                    .setApplicationName("demo.app")
+                    .setServerAddress("http://127.0.0.1:8476")
                     .setFormat(Format.COLLAPSED)
                     .setLogLevel(Logger.Level.DEBUG)
                     .setLabels(mapOf("user", "tolyan"))
@@ -32,6 +34,18 @@ public class App {
         Pyroscope.setStaticLabels(mapOf("region", "us-east-1"));
 
         appLogic();
+        test();
+    }
+
+    private static void test() {
+        while(true) {
+            try {
+                System.out.println("taiye");
+                Thread.sleep(1000);
+            } catch (Exception e) {
+
+            }
+        }
     }
 
     private static void appLogic() {
@@ -68,7 +82,7 @@ public class App {
         if (n == 1L) {
             return 1L;
         }
-        Thread.sleep(100);
+        Thread.sleep(1000);
         return fib(n - 1) + fib(n - 2);
     }
 

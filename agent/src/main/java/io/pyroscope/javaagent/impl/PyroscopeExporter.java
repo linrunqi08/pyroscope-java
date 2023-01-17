@@ -8,6 +8,7 @@ import io.pyroscope.javaagent.config.Config;
 import io.pyroscope.labels.Pyroscope;
 import okhttp3.*;
 
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,14 +30,26 @@ public class PyroscopeExporter implements Exporter {
             .connectTimeout(TIMEOUT)
             .readTimeout(TIMEOUT)
             .callTimeout(TIMEOUT)
+            .retryOnConnectionFailure(true)
             .build();
 
     }
 
+    public void writeToFile(byte[] data, String fileName) throws IOException{
+        FileOutputStream out = new FileOutputStream(fileName);
+        out.write(data);
+        out.close();
+    }
+
     @Override
     public void export(Snapshot snapshot) {
+        //String dataStr = new String(snapshot.data);
+        //System.out.println(dataStr);
+
         try {
+
             uploadSnapshot(snapshot);
+
         } catch (final InterruptedException ignored) {
             Thread.currentThread().interrupt();
         }
@@ -44,11 +57,20 @@ public class PyroscopeExporter implements Exporter {
 
     private void uploadSnapshot(final Snapshot snapshot) throws InterruptedException {
         final HttpUrl url = urlForSnapshot(snapshot);
+        System.out.println(url.toString());
         final ExponentialBackoff exponentialBackoff = new ExponentialBackoff(1_000, 30_000, new Random());
         boolean success = false;
         while (!success) {
             final RequestBody requestBody;
             if (config.format == Format.JFR) {
+                try {
+                    writeToFile(snapshot.data, "jfr.raw");
+                    byte[] labels = snapshot.labels.toByteArray();
+                    writeToFile(labels, "jfr_labels.raw");
+                    //System.out.println(snapshot.);
+                } catch (Exception e) {
+                    System.out.println(e.getMessage());
+                }
                 byte[] labels = snapshot.labels.toByteArray();
                 logger.log(Logger.Level.DEBUG, "Upload attempt. JFR: %s, labels: %s", snapshot.data.length, labels.length);
                 MultipartBody.Builder bodyBuilder = new MultipartBody.Builder()
@@ -68,6 +90,9 @@ public class PyroscopeExporter implements Exporter {
                 requestBody = bodyBuilder.build();
             } else {
                 logger.log(Logger.Level.DEBUG, "Upload attempt. collapsed: %s", snapshot.data.length);
+                String rawStr = new String(snapshot.data);
+                System.out.println(rawStr);
+                System.out.println(rawStr);
                 requestBody = RequestBody.create(snapshot.data);
             }
             Request.Builder request = new Request.Builder()
@@ -76,6 +101,8 @@ public class PyroscopeExporter implements Exporter {
             if (config.authToken != null && !config.authToken.isEmpty()) {
                 request.header("Authorization", "Bearer " + config.authToken);
             }
+            request.header("Accept-Encoding", "identity");
+            request.header("Connection", "close");
             try (Response response = client.newCall(request.build()).execute()) {
                 int status = response.code();
                 if (status >= 400) {
